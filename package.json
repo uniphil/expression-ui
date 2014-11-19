@@ -1,0 +1,27 @@
+{
+  "name": "expression-ui",
+  "version": "0.0.1",
+  "description": "fun with math expressions",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/uniphil/expression-ui.git"
+  },
+  "keywords": [
+    "math",
+    "expression",
+    "visualization"
+  ],
+  "author": "uniphil",
+  "license": "public domain",
+  "bugs": {
+    "url": "https://github.com/uniphil/expression-ui/issues"
+  },
+  "homepage": "https://github.com/uniphil/expression-ui",
+  "dependencies": {
+    "crel": "^2.1.5"
+  }
+}
