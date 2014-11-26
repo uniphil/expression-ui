@@ -1,8 +1,17 @@
+body {
+  background: #ddc;
+}
+
+input,
+.expr {
+  width: 100%;
+  font-size: 20px;
+  line-height: 1;
+  font-family: monospace;
+}
 
 .expr {
   margin-top: 380px;
-  font-size: 20px;
-  line-height: 1;
 }
 
 .expr-node {
@@ -14,7 +23,7 @@
   border: 2px solid white;
   border-radius: 6px / 1em;
   border-width: 0 2px;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.2);
   cursor: default;
 }
 .expr-node > .bar {
@@ -22,8 +31,23 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 1em;
-  border: 1px solid white;
+  bottom: 22px;
+  box-shadow: 0 -2px 4px white;
   border-width: 1px 1px 0;
-  background: rgba(127, 0, 0, 0.2);
+  border-radius: 3px 3px 0 0;
+  background: rgba(0, 0, 127, 0.4);
+}
+.expr-node > .bar.negative {
+  background: rgba(127, 0, 0, 0.4);
+}
+.expr-node:hover > .bar {
+  background: rgba(0, 127, 0, 0.4);
+}
+
+.expr-func {
+  color: #c06;
+}
+.expr-name,
+.expr-literal {
+  color: #096;
 }
