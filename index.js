@@ -69,7 +69,6 @@ function logify(num) {
 
   function scaleBars(ctx) {
     valuer(ctx).forEach(function(val, i) {
-      console.log('bid', barElIDMap);
       css(barElIDMap[i], {height: logify(val) + 'px'});
     });
   }
