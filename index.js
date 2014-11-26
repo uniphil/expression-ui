@@ -34,7 +34,20 @@ function css(el, styles) {
 
 
 function logify(num) {
-  return 18 * Math.log(num + 1);
+  return 18 * Math.log(Math.abs(num) + 1);
+}
+
+
+function mute(el, ev, listener, fn, thisArg, args) {
+  el.removeEventListener(ev, listener, false);
+  console.log('removed???');
+  fn.apply(thisArg, args);
+  console.log('readding...');
+  function faker() {}
+  el.addEventListener(ev, faker, false);
+  el.removeEventListener(ev, faker, false);
+  console.log('readding...');
+  el.addEventListener(ev, listener, false);
 }
 
 
@@ -45,10 +58,10 @@ function logify(num) {
       valuer,
       barElIDMap = [];
   crel(document.getElementById('expression'),
-    inputEl = crel('input'),
     // jscs:disable disallowQuotedKeysInObjects
-    domAstEl = crel('pre', {'class': 'expr'})
+    domAstEl = crel('pre', {'class': 'expr'}),
     // jscs:enable disallowQuotedKeysInObjects
+    inputEl = crel('input')
   );
 
 
@@ -67,14 +80,34 @@ function logify(num) {
     barElIDMap = parts[1];
   }
 
+
   function scaleBars(ctx) {
     valuer(ctx).forEach(function(val, i) {
       css(barElIDMap[i], {height: logify(val) + 'px'});
+      barElIDMap[i].classList[val < 0 ? 'add' : 'remove']('negative');
     });
   }
 
 
-  function updateASTOnInput(e) { updateAST(e.currentTarget.value); }
-  inputEl.addEventListener('keyup', updateASTOnInput);
+  function updateOnHash() {
+    var str = window.location.hash.slice(1);  // remove '#';
+    inputEl.value = str;
+    updateAST(str);
+  }
+
+
+  function updateOnInput(e) {
+    var str = e.currentTarget.value;
+    updateAST(str);
+    window.removeEventListener('hashchange', updateOnHash, false);
+    window.location.hash = str;
+    window.setTimeout(function() {
+      // reattach later so it doesn't fire now...
+      window.addEventListener('hashchange', updateOnHash, false);
+    }, 0);
+  }
+  inputEl.addEventListener('keyup', updateOnInput, false);
+  window.addEventListener('hashchange', updateOnHash, false);
+  updateOnHash();  // force one on pageload;
 
 })();
