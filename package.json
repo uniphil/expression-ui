@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/uniphil/expression-ui",
   "dependencies": {
-    "crel": "^2.1.5"
+    "crel": "^2.1.5",
+    "expression-compiler": "^0.3.1"
   }
 }

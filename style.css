@@ -1,0 +1,29 @@
+
+.expr {
+  margin-top: 380px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.expr-node {
+  position: relative;
+  border: 1px solid transparent;
+  border-width: 0 2px;
+}
+.expr-node:hover {
+  border: 2px solid white;
+  border-radius: 6px / 1em;
+  border-width: 0 2px;
+  background: rgba(0, 0, 0, 0.1);
+  cursor: default;
+}
+.expr-node > .bar {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1em;
+  border: 1px solid white;
+  border-width: 1px 1px 0;
+  background: rgba(127, 0, 0, 0.2);
+}
