@@ -138,7 +138,7 @@ function getContext(metaContext) {
 
 
   function updateOnHash() {
-    var str = window.location.hash.slice(1);  // remove '#';
+    var str = decodeURIComponent(window.location.hash.slice(1));
     inputEl.value = str;
     updateAST(str);
   }
@@ -148,7 +148,7 @@ function getContext(metaContext) {
     var str = e.currentTarget.value;
     updateAST(str);
     window.removeEventListener('hashchange', updateOnHash, false);
-    window.location.hash = str;
+    window.location.hash = encodeURIComponent(str);
     window.setTimeout(function() {
       // reattach later so it doesn't fire now...
       window.addEventListener('hashchange', updateOnHash, false);
