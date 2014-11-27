@@ -35,34 +35,58 @@ function css(el, styles) {
 
 
 function logify(num) {
-  return 18 * Math.log(Math.abs(num) + 1);
+  // return 18 * Math.log(Math.abs(num) + 1);
+  return 32 * Math.abs(num);
 }
 
 
-function mute(el, ev, listener, fn, thisArg, args) {
-  el.removeEventListener(ev, listener, false);
-  console.log('removed???');
-  fn.apply(thisArg, args);
-  console.log('readding...');
-  function faker() {}
-  el.addEventListener(ev, faker, false);
-  el.removeEventListener(ev, faker, false);
-  console.log('readding...');
-  el.addEventListener(ev, listener, false);
+function ctxConst() {
+  return {
+    type: 'const',
+    value: 1
+  };
+}
+
+
+function updateContext(prev, newAST) {
+  var newContext = {};
+  (function walk(node) {
+    if (node.node === 'name') {  // it's a variable or const name
+      var name = node.options.key;
+      if (!newContext[name]) {  // we don't have it yet
+        newContext[name] = prev[name] || ctxConst();
+      }
+    }
+    node.children.forEach(walk);
+  })(newAST);
+  return newContext;
+}
+
+
+function getContext(metaContext) {
+  return Object.keys(metaContext)
+    .map(function(key) { return [key, metaContext[key].value]; })
+    .reduce(function(ctx, thisCtx) {
+      ctx[thisCtx[0]] = thisCtx[1];
+      return ctx;
+    }, {});
 }
 
 
 (function() {
   var inputEl,
       domAstEl,
+      ctxEl,
       exprAST,
       valuer,
+      metaContext = {},
       barElIDMap = [];
   crel(document.getElementById('expression'),
     // jscs:disable disallowQuotedKeysInObjects
-    domAstEl = crel('pre', {'class': 'expr'}),
+    domAstEl = crel('div', {'class': 'expr'}),
+    inputEl = crel('input', {'class': 'expr-input expr-input-expression'}),
+    ctxEl = crel('div')
     // jscs:enable disallowQuotedKeysInObjects
-    inputEl = crel('input')
   );
 
 
@@ -70,7 +94,9 @@ function mute(el, ev, listener, fn, thisArg, args) {
     exprAST = parse(str);
     valuer = values.fromAST(exprAST);
     renderDOMAST(exprAST);
-    scaleBars();
+    metaContext = updateContext(metaContext, exprAST);
+    renderContext(metaContext);
+    scaleBars(getContext(metaContext));
   }
 
 
@@ -79,6 +105,27 @@ function mute(el, ev, listener, fn, thisArg, args) {
     emptyEl(domAstEl);
     crel(domAstEl, parts[0]);
     barElIDMap = parts[1];
+  }
+
+
+  function renderContext(metaContext) {
+    // jscs:disable disallowQuotedKeysInObjects
+    emptyEl(ctxEl);
+    crel(ctxEl, {'class': 'expr-consts'},
+      crel('ul', Object.keys(metaContext).map(function(key) {
+        return crel('li',
+          crel('label',
+            key + ' = ',
+            crel('input', {
+              'class': 'expr-input expr-input-const',
+              'value': metaContext[key].value,
+              'data-name': key
+            })
+          )
+        );
+      }))
+    );
+    // jscs:enable disallowQuotedKeysInObjects
   }
 
 
@@ -107,7 +154,19 @@ function mute(el, ev, listener, fn, thisArg, args) {
       window.addEventListener('hashchange', updateOnHash, false);
     }, 0);
   }
+
+
+  function updateOnConstInput(e) {
+    var constInput = e.target,
+        newValue = parseFloat(constInput.value);
+    constInput.classList[isNaN(newValue) ? 'add' : 'remove']('err');  // warn for NaN
+    window.ci = constInput;
+    metaContext[constInput.dataset.name].value = newValue;
+    scaleBars(getContext(metaContext));
+  }
+
   inputEl.addEventListener('keyup', updateOnInput, false);
+  ctxEl.addEventListener('keyup', updateOnConstInput, false);
   window.addEventListener('hashchange', updateOnHash, false);
   updateOnHash();  // force one on pageload;
 
