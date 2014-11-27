@@ -13,7 +13,6 @@
   },
   "disallowEmptyBlocks": true,
   "disallowKeywordsOnNewLine": [ "else" ],
-  "disallowQuotedKeysInObjects": true,
   "disallowSpacesInsideArrayBrackets": true,
   "disallowSpacesInsideParentheses": true,
   "disallowSpaceAfterObjectKeys": true,

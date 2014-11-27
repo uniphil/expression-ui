@@ -3,9 +3,20 @@ var parse = require('expression-compiler/parse');
 var values = require('expression-compiler/values');
 
 
+function extend(out) {
+  /* http://youmightnotneedjquery.com/#extend */
+  out = out || {};
+  for (var i = 1; i < arguments.length; i++) {
+    if (!arguments[i]) { continue; }
+    for (var key in arguments[i]) {
+      if (arguments[i].hasOwnProperty(key)) { out[key] = arguments[i][key]; }
+    }
+  }
+  return out;
+}
+
 
 function astToDom(node, barElIDMap) {
-  // jscs:disable disallowQuotedKeysInObjects
   barElIDMap = barElIDMap || [];
   return [crel('span',
     {'class': ['expr-node', 'expr-' + node.node].join(' ')},
@@ -17,7 +28,6 @@ function astToDom(node, barElIDMap) {
       return pieces;
     }, [barElIDMap[node.id] = crel('span', {'class': 'bar'})])
   ), barElIDMap];
-  // jscs:enable disallowQuotedKeysInObjects
 }
 
 
@@ -39,10 +49,13 @@ function logify(num) {
 }
 
 
-function ctxConst() {
+function ctxValue(options) {
+  options = extend({type: 'const', value: 1}, options || {});
   return {
-    type: 'const',
-    value: 1
+    type: options.type,
+    value: options.value,
+    min: options.min || Math.min(options.value, 0),
+    max: options.max || Math.max(options.value, 10)
   };
 }
 
@@ -53,7 +66,7 @@ function updateContext(prev, newAST) {
     if (node.node === 'name') {  // it's a variable or const name
       var name = node.options.key;
       if (!newContext[name]) {  // we don't have it yet
-        newContext[name] = prev[name] || ctxConst();
+        newContext[name] = prev[name] || ctxValue();
       }
     }
     node.children.forEach(walk);
@@ -72,6 +85,14 @@ function getContext(metaContext) {
 }
 
 
+function rangeNorm(context, value) {
+  return (value - context.min) / (context.max - context.min);
+}
+function unrange(context, value) {
+  return value * (context.max - context.min) + context.min;
+}
+
+
 (function() {
   var inputEl,
       domAstEl,
@@ -81,11 +102,9 @@ function getContext(metaContext) {
       metaContext = {},
       barElIDMap = [];
   crel(document.getElementById('expression'),
-    // jscs:disable disallowQuotedKeysInObjects
     domAstEl = crel('div', {'class': 'expr'}),
     inputEl = crel('input', {'class': 'expr-input expr-input-expression'}),
     ctxEl = crel('div')
-    // jscs:enable disallowQuotedKeysInObjects
   );
 
 
@@ -107,24 +126,77 @@ function getContext(metaContext) {
   }
 
 
+  function renderChoice(ctxKey, group, key, name, selected) {
+    var groupKey = [group, key].join('-'),
+        inputAttrs = {
+      'type': 'radio',
+      'id': groupKey,
+      'name': group,
+      'data-key': key,
+      'data-ctx': ctxKey
+    };
+    if (selected === key) { inputAttrs.checked = true; }
+    return crel('span', {'class': 'expr-choice'},
+      crel('input', inputAttrs),
+      crel('label', {'for': groupKey}, name));
+  }
+
+
+  function renderContextInput(key, context, id) {
+    if (context.type === 'const') {
+      return crel('input', {
+        'id': id,
+        'class': 'expr-input expr-input-const',
+        'value': context.value,
+        'data-name': key
+      });
+    } else {
+      return crel('span',
+        crel('label',
+          'min:',
+          crel('input', {
+            'class': 'expr-input expr-input-range-bound',
+            'value': context.min,
+            'data-name': key,
+            'data-bound': 'min'
+          })),
+        crel('input', {
+          'id': id,
+          'type': 'range',
+          'class': 'expr-input expr-input-range',
+          'value': rangeNorm(context, context.value),
+          'min': 0,
+          'max': 1,
+          'step': 0.001,
+          'data-name': key
+        }),
+        crel('label',
+          'max:',
+          crel('input', {
+            'class': 'expr-input expr-input-range-bound',
+            'value': context.max,
+            'data-name': key,
+            'data-bound': 'max'
+          })));
+    }
+  }
+
+
   function renderContext(metaContext) {
-    // jscs:disable disallowQuotedKeysInObjects
+    var ctxId,
+        context;
     emptyEl(ctxEl);
     crel(ctxEl, {'class': 'expr-consts'},
       crel('ul', Object.keys(metaContext).map(function(key) {
+        context = metaContext[key];
+        ctxId = 'ctx-' + key;
         return crel('li',
-          crel('label',
-            key + ' = ',
-            crel('input', {
-              'class': 'expr-input expr-input-const',
-              'value': metaContext[key].value,
-              'data-name': key
-            })
-          )
-        );
-      }))
-    );
-    // jscs:enable disallowQuotedKeysInObjects
+          crel('label', {'for': ctxId}, key, ' = '),
+          crel('span',
+            renderChoice(key, ctxId + '-type', 'const', 'const', context.type),
+            renderChoice(key, ctxId + '-type', 'range', 'variable', context.type)),
+          renderContextInput(key, context, ctxId));
+      })));
   }
 
 
@@ -136,36 +208,99 @@ function getContext(metaContext) {
   }
 
 
+  function persist() {
+    var state = {
+      expr: inputEl.value,
+      ctx: metaContext
+    };
+    window.removeEventListener('hashchange', updateOnHash, false);
+    window.location.hash = encodeURIComponent(JSON.stringify(state));
+    window.setTimeout(function() { // reattach later so it doesn't fire now...
+      window.addEventListener('hashchange', updateOnHash, false);
+    }, 0);
+  }
+  function unpersist(state) {
+    inputEl.value = state.expr;
+    metaContext = state.ctx;
+    updateAST(state.expr);
+  }
+
+
   function updateOnHash() {
-    var str = decodeURIComponent(window.location.hash.slice(1));
-    inputEl.value = str;
-    updateAST(str);
+    if (window.location.hash.slice(1)) {
+      try {
+        var state = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+        unpersist(state);
+      } catch (e) {
+        console.error('could not load stat from url hash');
+      }
+    }
   }
 
 
   function updateOnInput(e) {
     var str = e.currentTarget.value;
     updateAST(str);
-    window.removeEventListener('hashchange', updateOnHash, false);
-    window.location.hash = encodeURIComponent(str);
-    window.setTimeout(function() {
-      // reattach later so it doesn't fire now...
-      window.addEventListener('hashchange', updateOnHash, false);
-    }, 0);
+    persist();
   }
 
 
-  function updateOnConstInput(e) {
-    var constInput = e.target,
-        newValue = parseFloat(constInput.value);
-    constInput.classList[isNaN(newValue) ? 'add' : 'remove']('err');  // warn for NaN
-    window.ci = constInput;
-    metaContext[constInput.dataset.name].value = newValue;
+  function updateConst(input, val) {
+    metaContext[input.dataset.name].value = val;
     scaleBars(getContext(metaContext));
   }
 
+
+  function updateRangeBound(input, val) {
+    var ctx = metaContext[input.dataset.name],
+        data = input.dataset;
+    ctx[data.bound] = val;
+    ctx.value = Math[data.bound === 'min' ? 'max' : 'min'](ctx.value, ctx[data.bound]);
+    scaleBars(getContext(metaContext));
+  }
+
+
+  function updateOnCtxInput(e) {
+    var input = e.target,
+        val = parseFloat(input.value);
+    input.classList[isNaN(val) ? 'add' : 'remove']('err');  // warn for NaN
+    if (input.classList.contains('expr-input-const')) {
+      updateConst(input, val);
+    }
+  }
+
+
+  function updateOnCtxChange(e) {
+    var input = e.target;
+    if (input.classList.contains('expr-input-range-bound')) {
+      updateRangeBound(input, parseFloat(input.value));
+      persist();
+    } else if (input.getAttribute('type') === 'radio') {
+      var ctxKey = input.dataset.ctx;
+      metaContext[ctxKey] = ctxValue(extend(metaContext[ctxKey], { type: input.dataset.key }));
+      persist();
+    } else if (input.classList.contains('expr-input-range')) {
+      persist();
+    } else {
+      return;
+    }
+    renderContext(metaContext);  // maybe be more targeted?
+  }
+
+
+  function updateOnCtxSliderDrag(e) {
+    var input = e.target;
+    if (input.getAttribute('type') !== 'range') { return; }
+    var ctx = metaContext[input.dataset.name];
+    ctx.value = unrange(ctx, input.value);
+    scaleBars(getContext(metaContext));
+  }
+
+
   inputEl.addEventListener('keyup', updateOnInput, false);
-  ctxEl.addEventListener('keyup', updateOnConstInput, false);
+  ctxEl.addEventListener('keyup', updateOnCtxInput, false);  // TODO: use change as well
+  ctxEl.addEventListener('change', updateOnCtxChange, false);
+  ctxEl.addEventListener('input', updateOnCtxSliderDrag, false);  // TODO: change, etc.
   window.addEventListener('hashchange', updateOnHash, false);
   updateOnHash();  // force one on pageload;
 
