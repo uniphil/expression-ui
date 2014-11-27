@@ -208,21 +208,40 @@ function unrange(context, value) {
   }
 
 
+  function persist() {
+    var state = {
+      expr: inputEl.value,
+      ctx: metaContext
+    };
+    window.removeEventListener('hashchange', updateOnHash, false);
+    window.location.hash = encodeURIComponent(JSON.stringify(state));
+    window.setTimeout(function() { // reattach later so it doesn't fire now...
+      window.addEventListener('hashchange', updateOnHash, false);
+    }, 0);
+  }
+  function unpersist(state) {
+    inputEl.value = state.expr;
+    metaContext = state.ctx;
+    updateAST(state.expr);
+  }
+
+
   function updateOnHash() {
-    var str = decodeURIComponent(window.location.hash.slice(1));
-    inputEl.value = str;
-    updateAST(str);
+    if (window.location.hash.slice(1)) {
+      try {
+        var state = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+        unpersist(state);
+      } catch (e) {
+        console.error('could not load stat from url hash');
+      }
+    }
   }
 
 
   function updateOnInput(e) {
     var str = e.currentTarget.value;
     updateAST(str);
-    window.removeEventListener('hashchange', updateOnHash, false);
-    window.location.hash = encodeURIComponent(str);
-    window.setTimeout(function() { // reattach later so it doesn't fire now...
-      window.addEventListener('hashchange', updateOnHash, false);
-    }, 0);
+    persist();
   }
 
 
@@ -255,9 +274,13 @@ function unrange(context, value) {
     var input = e.target;
     if (input.classList.contains('expr-input-range-bound')) {
       updateRangeBound(input, parseFloat(input.value));
+      persist();
     } else if (input.getAttribute('type') === 'radio') {
       var ctxKey = input.dataset.ctx;
       metaContext[ctxKey] = ctxValue(extend(metaContext[ctxKey], { type: input.dataset.key }));
+      persist();
+    } else if (input.classList.contains('expr-input-range')) {
+      persist();
     } else {
       return;
     }
