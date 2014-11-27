@@ -2,27 +2,35 @@ body {
   background: #ddc;
 }
 
-input,
-.expr {
-  width: 100%;
+.expr,
+.expr-consts,
+.expr-input {
   font-size: 20px;
   line-height: 1;
   font-family: monospace;
 }
 
+.expr,
+.expr-input-expression {
+  width: 100%;
+}
+
 .expr {
-  margin-top: 380px;
+  margin-top: 240px;
+}
+
+.expr-input-const {
+  width: 52px;
+}
+.expr-input-const.err {
+  background: #fcc;
 }
 
 .expr-node {
   position: relative;
-  border: 1px solid transparent;
-  border-width: 0 2px;
 }
 .expr-node:hover {
-  border: 2px solid white;
   border-radius: 6px / 1em;
-  border-width: 0 2px;
   background: rgba(0, 0, 0, 0.2);
   cursor: default;
 }
@@ -32,7 +40,7 @@ input,
   left: 0;
   right: 0;
   bottom: 22px;
-  box-shadow: 0 -2px 4px white;
+  border: 1px solid rgba(0, 0, 0, 0.4);
   border-width: 1px 1px 0;
   border-radius: 3px 3px 0 0;
   background: rgba(0, 0, 127, 0.4);
