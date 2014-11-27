@@ -1,5 +1,5 @@
 body {
-  background: #ddc;
+  background: #eed;
 }
 
 .expr,
@@ -19,10 +19,11 @@ body {
   margin-top: 240px;
 }
 
-.expr-input-const {
+.expr-input-const,
+.expr-input-range-bound {
   width: 52px;
 }
-.expr-input-const.err {
+.expr-input.err {
   background: #fcc;
 }
 
@@ -58,4 +59,20 @@ body {
 .expr-name,
 .expr-literal {
   color: #096;
+}
+
+.expr-choice input {
+  display: none;  /* TODO: just make it visually hidden */
+}
+.expr-choice label {
+  font-size: 16px;
+  padding: 2px 8px;
+  color: #666;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+.expr-choice input:checked + label {
+  color: #060;
+  border-color: #9c9;
+  background: #cfc;
 }
