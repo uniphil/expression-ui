@@ -8,7 +8,7 @@ body {
 .expr-context-widgets {
   position: relative;
   margin: 12px 32px;
-  width: 256px;
+  width: 456px;
   font: 20px monospace;
   white-space: pre;
 }
