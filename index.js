@@ -75,11 +75,11 @@ var uiExprWidthStore = Reflux.createStore({
 
   init: function() {
     this.listenTo(actions.expressionWidthChange, this.changeWidth);
-    this.width = 200;
+    this.width = 456;
   },
 
   changeWidth: function(exprWidth) {
-    var newWidth = Math.max(256, exprWidth + 32);
+    var newWidth = Math.max(456, exprWidth + 32);
     if (newWidth !== this.width) {
       this.width = newWidth;
       this.trigger(newWidth);
