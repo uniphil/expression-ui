@@ -144,7 +144,7 @@ var contextStore = Reflux.createStore({
 var contextChangeStore = Reflux.createStore({
 
   init: function() {
-    this.listenTo(contextStore, this.newContext);
+    this.listenTo(flowThrottle(contextStore), this.newContext);
     this.prevContext = {};
   },
 
@@ -259,7 +259,7 @@ var decodedStateStore = Reflux.createStore({
         return state;
       }, {expr: '', context: {}});
     actions.expressionChange(state.expr);
-    actions.contextSet(state.context);
+    actions.contextSet(state.context, true);
     actions.contextCommit();
     this.trigger(state);
   },
@@ -398,7 +398,7 @@ function ContextComponent(root) {
   root.addEventListener('keyup', inputUpdate, false);
   root.addEventListener('change', inputChange, false);
 
-  contextCommitStore.listen(newContext);
+  flowThrottle(contextCommitStore).listen(newContext);
   contextVaryStore.listen(spinNumber);
 
   var currentContext;
