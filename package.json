@@ -23,6 +23,9 @@
   "homepage": "https://github.com/uniphil/expression-ui",
   "dependencies": {
     "crel": "^2.1.5",
-    "expression-compiler": "^0.3.1"
+    "es5-shim": "^4.0.5",
+    "expression-compiler": "^0.3.1",
+    "reflux": "^0.2.0",
+    "setimmediate": "^1.0.2"
   }
 }

@@ -1,23 +1,85 @@
 body {
-  background: #eed;
+  background: #345;
 }
 
-.expr,
-.expr-consts,
+
+.expr-input,
+.expr-bars,
+.expr-context-widgets {
+  position: relative;
+  margin: 12px 32px;
+  width: 256px;
+  font: 20px monospace;
+  white-space: pre;
+}
+
+
 .expr-input {
-  font-size: 20px;
-  line-height: 1;
-  font-family: monospace;
+  opacity: 0.8;
+  color: #9ac;
+  background: rgba(2, 4, 8, 0.333);
+  border-radius: 4px;
 }
-
-.expr,
-.expr-input-expression {
+.expr-input:hover {
+  opacity: 1;
+  background: rgba(2, 4, 8, 0.5);
+}
+.expr-input-highlighted,
+.expr-input-textinput {
+  box-sizing: border-box;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-width: 1px 0;
+  border-radius: 4px;
+}
+.expr-input-highlighted {
+  position: absolute;
+  z-index: 1;
+}
+.expr-input-textinput,
+.expr-choice .expr-input-radio-label {
+  position: relative;
+  z-index: 2;
   width: 100%;
+  font: inherit;
+  color: rgba(255, 255, 255, 0.333);
+  background: transparent;
+  border-color: rgba(0, 16, 24, 0.333) transparent rgba(200, 225, 255, 0.2);
+}
+.expr-input-textinput:focus {
+  outline: none;
+  border-top-color: rgba(0, 16, 25, 0.667);
+}
+.expr-expr { color: #936;}
+.expr-func { color: #c93; }
+.expr-name { color: #096; }
+.expr-literal { color: #9ac; }
+
+
+.expr-bars {
+  box-sizing: border-box;
+  display: block;
+  height: 280px;
+  padding: 0 6px;  /* match padding of input */
+  border-bottom: 1px dashed rgba(200, 200, 255, 0.3);
+}
+.expr-bar {
+  position: relative;
+  display: inline-block;
+  color: transparent;
+}
+.expr-bar-bar {
+  display: block;
+  position: absolute;
+  width: 100%;
+  background: rgba(200, 200, 255, 0.15);
+  box-shadow: 0 0 3px #345;
+}
+.expr-bar-bar:hover {
+  background: rgba(200, 200, 255, 0.5);
 }
 
-.expr {
-  margin-top: 320px;
-}
+
 
 .expr-input-const,
 .expr-input-range-bound {
@@ -27,15 +89,15 @@ body {
   background: #fcc;
 }
 
-.expr-node {
+.expr-text {
   position: relative;
 }
-.expr-node:hover {
+.expr-text:hover {
   border-radius: 6px / 1em;
   background: rgba(0, 0, 0, 0.2);
   cursor: default;
 }
-.expr-node > .bar {
+.expr-text > .bar {
   display: block;
   position: absolute;
   left: 0;
@@ -46,33 +108,84 @@ body {
   border-radius: 3px 3px 0 0;
   background: rgba(0, 0, 127, 0.4);
 }
-.expr-node > .bar.negative {
+.expr-text > .bar.negative {
   background: rgba(127, 0, 0, 0.4);
 }
-.expr-node:hover > .bar {
+.expr-text:hover > .bar {
   background: rgba(0, 127, 0, 0.4);
 }
 
-.expr-func {
-  color: #c06;
-}
-.expr-name,
-.expr-literal {
-  color: #096;
-}
 
 .expr-choice input {
   display: none;  /* TODO: just make it visually hidden */
 }
-.expr-choice label {
-  font-size: 16px;
-  padding: 2px 8px;
-  color: #666;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+
+.expr-context-widgets,
+.expr-context-widgets li {
+  list-style-type: none;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.333);
 }
-.expr-choice input:checked + label {
-  color: #060;
-  border-color: #9c9;
-  background: #cfc;
+.expr-context-widgets {
+  width: auto;
+}
+.expr-context-widgets li {
+  opacity: 0.85;
+}
+.expr-context-widgets li:hover {
+  opacity: 1;
+}
+.expr-context-widgets .expr-name {
+  color: #5b9;
+}
+.expr-context-widgets .expr-input {
+  display: inline-block;
+  width: 64px;
+  margin: 1px 2px;
+}
+
+.expr-choices {
+  margin: 0 2px;
+}
+.expr-choice {
+  margin: 0;
+}
+.expr-choice .expr-input-radio {
+  display: none;
+}
+.expr-choice .expr-input-radio-label {
+  box-sizing: border-box;
+  display: inline-block;
+  vertical-align: top;
+  width: auto;
+  margin: 1px 0;
+  padding: 3px 6px;
+  font-family: sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  border: 1px solid transparent;
+  border-width: 1px 0;
+  border-color: rgba(200, 225, 255, 0.2) transparent rgba(0, 16, 24, 0.333);
+  background: rgba(100, 120, 130, 0.2);
+}
+.expr-choice:first-child .expr-input-radio-label {
+  border-radius: 4px 0 0 4px;
+}
+.expr-choice:last-child .expr-input-radio-label {
+  border-radius: 0 4px 4px 0;
+}
+.expr-choice .expr-input-radio:checked + .expr-input-radio-label {
+  color: #5b9;
+  border-color: rgba(0, 16, 24, 0.333) transparent rgba(200, 225, 255, 0.2);
+  background: rgba(2, 4, 8, 0.333);
+}
+
+.expr-rangebound-label-text {
+  display: none;  /* TODO: just visually hide */
+}
+.expr-variable-range .expr-input {
+  width: 42px;
+}
+.expr-input-range {
+  vertical-align: middle;
 }
