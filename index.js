@@ -2,10 +2,13 @@ require('es5-shim');  // patches globals
 require('setimmediate');  // attaches to the global
 var crel = require('crel');
 var Reflux = require('reflux');
+
 var parse = require('expression-compiler/parse');
-var parseEcho = require('expression-compiler/echo');
 var values = require('expression-compiler/values');
+var parseEcho = require('expression-compiler/echo');
 var parseToFunc = require('expression-compiler/func');
+
+var createComponent = require('./create-component');
 
 
 // config for reflux... would be nice if this didn't mutate global reflux...
@@ -13,6 +16,11 @@ Reflux.nextTick(window.setImmediate);
 
 
 var SLIDER_STEPS = 200;
+
+
+var exprActions = Reflux.createActions([
+  'change'
+]);
 
 
 var actions = Reflux.createActions([
@@ -30,44 +38,23 @@ var actions = Reflux.createActions([
 
 var expressionStore = Reflux.createStore({
   init: function() {
-    this.listenTo(actions.expressionInput, this.outputIfChanged);
-    this.listenTo(actions.expressionChange, this.outputIfChanged);
-    this.lastInput = '';
+    this.data = {
+      expr: '',
+      ast: null
+    };
+    this.listenToMany(exprActions);
   },
-  outputIfChanged: function(rawInput) {
-    if (rawInput === this.lastInput) { return; }
-    this.trigger(rawInput);
-    this.lastInput = rawInput;
-  }
-});
-
-
-var astStore = Reflux.createStore({
-
-  init: function() {
-    this.listenTo(expressionStore, this.parse);
-    this.lastExpr = null;
+  onChange: function(expr) {
+    var newAST = expr && parse(cleanExpr(expr)) || null;
+    this.data = {
+      expr: expr,
+      ast: newAST
+    };
+    this.trigger(this.data);
   },
-
-  parse: function(newExpr) {
-    var ast;
-    try {
-      ast = parse(newExpr);
-    } catch (e) {
-      actions.expressionError(e);
-      var okExpr = newExpr;
-      while (okExpr = okExpr.slice(0, -1)) { // trim from the end until we get a valid ast
-        try {
-          ast = parse(okExpr);
-          break;
-        } catch (err) {
-          continue;
-        }
-      }
-    }
-    this.trigger(ast);
+  getInitialState: function() {
+    return this.data.expr;  // maybe check URL or something...
   }
-
 });
 
 
@@ -92,7 +79,7 @@ var uiExprWidthStore = Reflux.createStore({
 var contextStore = Reflux.createStore({
 
   init: function() {
-    this.listenTo(astStore, this.refreshContext);
+    this.listenTo(expressionStore, this.refreshContext);
     this.listenTo(actions.contextChange, this.updateContext);
     this.listenTo(actions.contextSet, this.setContext);
     this.context = {};
@@ -100,6 +87,7 @@ var contextStore = Reflux.createStore({
   },
 
   refreshContext: function(ast) {
+    ast = ast.ast;
     var newContext = {};
     if (!ast) {
       this.setContext(newContext);
@@ -181,124 +169,9 @@ var contextCommitStore = Reflux.createStore({
 var contextVaryStore = Reflux.joinTrailing(contextChangeStore, actions.contextVary);
 
 
-var stateStore = Reflux.createStore({
-
-  init: function() {
-    this.listenTo(expressionStore, this.newExpression);
-    this.listenTo(contextCommitStore, this.newContext);
-    this.state = {
-      expr: '',
-      context: {}
-    };
-  },
-
-  newExpression: function(expr) {
-    this.state.expr = expr;
-    this.trigger(this.state);
-  },
-
-  newContext: function(context) {
-    this.state.context = context;
-    this.trigger(this.state);
-  }
-
-});
-
-
-var encodedStateStore = Reflux.createStore({
-  // #expr="URLENCODED"&name=e;5;0;10
-  init: function() {
-    this.listenTo(flowThrottle(stateStore), this.encode);
-  },
-
-  encode: function(state) {
-    var pieces = Object.keys(state.context).map(function(name) {
-      return 'name=' + name + ';' + this.encodeName(state.context[name]);
-    }, this);
-    pieces.unshift('expr=' + this.encodeExpr(state.expr));
-    this.trigger(pieces.join('&'));
-  },
-
-  encodeExpr: function(expr) {
-    return encodeURIComponent(cleanExpr(expr));
-  },
-
-  encodeName: function(nameContext) {
-    var encoded = '' + nameContext.value;
-    if (nameContext.type === 'range') {
-      encoded = [encoded, nameContext.min, nameContext.max].join(';');
-    }
-    return encoded;
-  }
-});
-
-var decodedStateStore = Reflux.createStore({
-
-  init: function() {
-    this.listenTo(actions.encodedStateChange, this.decode);
-  },
-
-  decode: function(encoded) {
-    var _this = this;  // Array.prototype.reduce takes no thisValue
-    var state = encoded
-      .split('&')
-      .map(function(piece) { return piece.split('='); })
-      .reduce(function(state, pieces) {
-        var encKey = pieces[0],
-            encVal = pieces[1];
-        if (encKey === 'expr') {
-          if (state[encKey]) { console.warn('duplicate key', encKey); }
-          state.expr = _this.decodeExpr(encVal);
-        } else if (encKey === 'name') {
-          var parts = encVal.split(';');
-          if (state.context[encKey]) { console.warn('duplicate key', encKey); }
-          state.context[parts[0]] = _this.decodeName(parts.slice(1));
-        } else {
-          console.warn('garbage encoded part:', encKey, encVal);
-        }
-        return state;
-      }, {expr: '', context: {}});
-    actions.expressionChange(state.expr);
-    actions.contextSet(state.context, true);
-    actions.contextCommit();
-    this.trigger(state);
-  },
-
-  decodeExpr: function(encodedExpr) {
-    var exprValue;
-    // first, get rid of the url encoding
-    try {
-      exprValue = decodeURIComponent(encodedExpr);
-    } catch (err) {  // firefox may give it to us already-decoded
-      exprValue = encodedExpr;
-    }
-    // then, make sure it's a valid expression, not something nasty
-    return cleanExpr(exprValue);
-  },
-
-  decodeName: function(parts) {
-    var nameContext = { 'value': parseNumba(parts[0]) };
-    if (parts.length === 3) {
-      extend(nameContext, {
-        'type': 'range',
-        'min': parseNumba(parts[1]),
-        'max': parseNumba(parts[2])
-      });
-    } else {
-      extend(nameContext, {
-        'type': 'const',
-        'min': 0,
-        'max': 10
-      });
-      if (parts.length !== 1) { console.warn('bad name context', parts);}
-    }
-    return nameContext;
-  }
-});
-
 
 function BarsComponent(root) {
-  astStore.listen(newBars);
+  expressionStore.listen(newBars);
   contextStore.listen(scaleBars);
   uiExprWidthStore.listen(changeGraphWidth);
 
@@ -309,6 +182,7 @@ function BarsComponent(root) {
   crel(root, bl);
 
   function newBars(ast) {
+    ast = ast.ast;
     emptyEl(bl);
     if (!ast) { return; }
     barIdMap = [];
@@ -343,54 +217,57 @@ function BarsComponent(root) {
 }
 
 
-function InputComponent(root) {
-  root.addEventListener('keyup', input, false);
-  root.addEventListener('change', change, false);
+var Highlighter = createComponent({
+  init: function() {
+    this.listenTo(expressionStore, this.render);
+  },
+  render: function(expr) {
+    if (!expr || !expr.ast) { return void 0; }
+    return crel('span', {'class': 'expr-input-highlighted'},
+      walkTemplatesToDom(expr.ast, 'text'));
+  }
+});
 
-  decodedStateStore.listen(setInput);
-  astStore.listen(highlight);
-  expressionStore.listen(measureExpressionWidth);
-  uiExprWidthStore.listen(changeInputWidth);
 
-  function input(e) { actions.expressionInput(e.target.value); }
-  function change(e) { actions.expressionChange(e.target.value); }
-
-  // TODO: make render a seperate step from init maybe
-  var hl = crel('span', {'class': 'expr-input-highlighted'}),
-      containerEl = crel('div', {'class': 'expr-input'}),
-      widthMeasureEl = crel('span', {'class': 'expr-input-highlighted'});
-  emptyEl(root);
-  style(widthMeasureEl, {'visibility': 'hidden'});
-  crel(root,
-    crel(containerEl,
-      hl,
-      crel('input', {
+var NewInputComponent = createComponent({
+  init: function() {
+    this.eventEls = {
+      input: {
+        'keyup': this.changeSync,
+        'change': this.change
+      }
+    };
+    this.highlighter = new Highlighter();
+  },
+  change: function(e) {
+    exprActions.change(e.target.value);
+    this.updateWidth(e.target.value);
+  },
+  changeSync: function(e) {
+    // trigger input action synchronously to avoid blanking between redraws
+    exprActions.change.trigger(e.target.value);
+    this.updateWidth(e.target.value);
+  },
+  updateWidth: function(newText) {
+    this.widthMeasureEl.textContent = newText;
+    var width = this.widthMeasureEl.offsetWidth;
+    style(this.container, {
+      'width': Math.max(456, width + 32) + 'px'
+    });
+  },
+  render: function() {
+    return this.container = crel('div', {'class': 'expr-input'},
+      this.highlighter.render(),
+      this.eventEls.input.el = crel('input', {
         'class': 'expr-input-textinput',
-        'spellcheck': 'false'
-      }),
-      widthMeasureEl));
-
-
-  function setInput(state) {
-    root.querySelector('.expr-input-textinput').value = state.expr;
+        'spellcheck': 'false'}),
+      style(crel('span',
+        this.widthMeasureEl = crel('span', {'class': 'expr-input-highlighted'})), {
+        'position': 'absolute',
+        'left': '-99999em'
+      }));
   }
-
-  function highlight(ast) {
-    emptyEl(hl);
-    if (!ast) { return; }
-    crel(hl, walkTemplatesToDom(ast, 'text'));
-  }
-
-  function measureExpressionWidth(expr) {
-    widthMeasureEl.textContent = expr;
-    var width = widthMeasureEl.offsetWidth;
-    actions.expressionWidthChange(width);
-  }
-
-  function changeInputWidth(newWidth) {
-    style(containerEl, {width: newWidth + 'px'});
-  }
-}
+});
 
 
 function ContextComponent(root) {
@@ -515,32 +392,6 @@ function ContextComponent(root) {
 }
 
 
-function URLComponent(w) {
-  var pushRemove = encodedStateStore.listen(pushState);
-  w.addEventListener('hashchange', onHashChange, false);
-
-  function pushState(encodedState) {
-    w.removeEventListener('hashchange', onHashChange, false);
-    w.location.hash = encodedState;
-    window.setImmediate(function() {
-      w.addEventListener('hashchange', onHashChange, false);
-    });
-  }
-
-  function onHashChange() {
-    var hash = w.location.hash.slice(1);  // remove leading #
-    pushRemove();
-    actions.encodedStateChange(hash);
-    var tmp = encodedStateStore.listen(function() {
-      tmp();
-      pushRemove = encodedStateStore.listen(pushState);
-    });
-  }
-
-  onHashChange();
-}
-
-
 function cleanExpr(expr) {
   if (!expr) { return ''; }
   try {
@@ -600,6 +451,7 @@ function style(el, styles) {
   el.setAttribute('style', Object.keys(styles).map(function(key) {
     return [key, styles[key]].join(':');
   }).join(';'));
+  return el;
 }
 
 
@@ -646,18 +498,18 @@ function unrange(context, value) {
 
 (function InitApp(root) {
   var barsEl = crel('div'),
-      inputEl = crel('div'),
+      newInputEl = crel('div'),
       contextEl = crel('div');
   crel(root,
     barsEl,
-    inputEl,
+    newInputEl,
     contextEl
   );
 
   new BarsComponent(barsEl);
-  new InputComponent(inputEl);
+  var nic = new NewInputComponent();
   new ContextComponent(contextEl);
 
-  new URLComponent(window);
+  crel(newInputEl, nic.render());
 
 })(document.getElementById('expression'));
