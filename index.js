@@ -19,7 +19,8 @@ var SLIDER_STEPS = 200;
 
 
 var exprActions = Reflux.createActions([
-  'change'
+  'change',
+  'changeWidth'
 ]);
 
 
@@ -40,39 +41,28 @@ var expressionStore = Reflux.createStore({
   init: function() {
     this.data = {
       expr: '',
+      width: 0,
       ast: null
     };
     this.listenToMany(exprActions);
   },
   onChange: function(expr) {
     var newAST = expr && parse(cleanExpr(expr)) || null;
-    this.data = {
+    this.update({
       expr: expr,
       ast: newAST
-    };
+    });
+  },
+  onChangeWidth: function(exprWidth) {
+    this.update({width: exprWidth});  // beware the double-trigger...
+  },
+  update: function(change) {
+    this.data = extend({}, this.data, change);
     this.trigger(this.data);
   },
   getInitialState: function() {
     return this.data.expr;  // maybe check URL or something...
   }
-});
-
-
-var uiExprWidthStore = Reflux.createStore({
-
-  init: function() {
-    this.listenTo(actions.expressionWidthChange, this.changeWidth);
-    this.width = 456;
-  },
-
-  changeWidth: function(exprWidth) {
-    var newWidth = Math.max(456, exprWidth + 32);
-    if (newWidth !== this.width) {
-      this.width = newWidth;
-      this.trigger(newWidth);
-    }
-  }
-
 });
 
 
@@ -169,52 +159,42 @@ var contextCommitStore = Reflux.createStore({
 var contextVaryStore = Reflux.joinTrailing(contextChangeStore, actions.contextVary);
 
 
-
-function BarsComponent(root) {
-  expressionStore.listen(newBars);
-  contextStore.listen(scaleBars);
-  uiExprWidthStore.listen(changeGraphWidth);
-
-  var bl = crel('span', {'class': 'expr-bars'}),
-      barIdMap,
-      barValuer = values('0');
-
-  crel(root, bl);
-
-  function newBars(ast) {
-    ast = ast.ast;
-    emptyEl(bl);
-    if (!ast) { return; }
-    barIdMap = [];
-    barValuer = values.fromAST(ast);
-
-    crel(bl, walkTemplatesToDom(ast, 'bar', function(node, el) {
-      el.insertBefore(barIdMap[node.id] = crel('span',
-        {'class': 'expr-bar-bar'}), el.firstChild);
-    }));
-  }
-
-  function scaleBars(context) {
+var BarsComponent = createComponent({
+  init: function() {
+    this.listenTo(expressionStore, this.render);
+    this.listenTo(contextStore, this.scaleBars);
+    this.barIdMap = null;
+    this.barValues = null;
+  },
+  scaleBars: function(context) {
     var exprContext = Object.keys(context).reduce(function(ctx, k) {
-      ctx[k] = context[k].value;
-      return ctx;
-    }, {});
-    var values = barValuer(exprContext);
-    values.forEach(function(value, id) {
-      var logified = logify(value);
-      if (!barIdMap) {
-        console.warn('no bars???', barIdMap, id);
-        return;
-      }
-      style(barIdMap[id], {
-        top: (value > 0 ? (280 - logified) : 280) + 'px',
-        height: logified + 'px'
+          ctx[k] = context[k].value;
+          return ctx;
+        }, {}),
+        values = this.barValues(exprContext),
+        logified;
+    this.barIdMap.forEach(function(bar, id) {
+      logified = logify(values[id]);
+      style(bar, {
+        'top': (values[id] > 0 ? (280 - logified) : 280) + 'px',
+        'height': logified + 'px'
       });
     });
-  }
+  },
+  render: function(expr) {
+    var container = style(crel('span', {'class': 'expr-bars'}),
+      {'width': expr && expr.width + 6 + 'px' || '456px'});
+    if (!expr || !expr.ast) { return container; }
 
-  function changeGraphWidth(newWidth) { style(bl, {width: newWidth + 'px'}); }
-}
+    this.barIdMap = [];
+    this.barValues = values.fromAST(expr.ast);
+    return crel(container,
+      walkTemplatesToDom(expr.ast, 'bar', function(node, el) {
+        el.insertBefore(this.barIdMap[node.id] = crel('span',
+          {'class': 'expr-bar-bar'}), el.firstChild);
+      }, this));
+  }
+});
 
 
 var Highlighter = createComponent({
@@ -250,10 +230,12 @@ var InputComponent = createComponent({
   },
   updateWidth: function(newText) {
     this.widthMeasureEl.textContent = newText;
-    var width = this.widthMeasureEl.offsetWidth;
+    var exprWidth = this.widthMeasureEl.offsetWidth,
+        widgetWidth = Math.max(456, exprWidth + 32);
     style(this.container, {
-      'width': Math.max(456, width + 32) + 'px'
+      'width': widgetWidth + 'px'
     });
+    exprActions.changeWidth(exprWidth, widgetWidth);
   },
   render: function() {
     return this.container = crel('div', {'class': 'expr-input'},
@@ -498,15 +480,14 @@ function unrange(context, value) {
 
 var MainComponent = createComponent({
   init: function() {
-    this.barsEl = crel('div');
-    this.bars = new BarsComponent(this.barsEl);
+    this.bars = new BarsComponent();
     this.input = new InputComponent();
     this.contextEl = crel('div');
     this.context = new ContextComponent(this.contextEl);
   },
   render: function() {
     crel(this.el,
-      this.barsEl,
+      this.bars.render(),
       this.input.render(),
       this.contextEl);
   }
