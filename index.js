@@ -229,7 +229,7 @@ var Highlighter = createComponent({
 });
 
 
-var NewInputComponent = createComponent({
+var InputComponent = createComponent({
   init: function() {
     this.eventEls = {
       input: {
@@ -496,20 +496,21 @@ function unrange(context, value) {
 }
 
 
-(function InitApp(root) {
-  var barsEl = crel('div'),
-      newInputEl = crel('div'),
-      contextEl = crel('div');
-  crel(root,
-    barsEl,
-    newInputEl,
-    contextEl
-  );
+var MainComponent = createComponent({
+  init: function() {
+    this.barsEl = crel('div');
+    this.bars = new BarsComponent(this.barsEl);
+    this.input = new InputComponent();
+    this.contextEl = crel('div');
+    this.context = new ContextComponent(this.contextEl);
+  },
+  render: function() {
+    crel(this.el,
+      this.barsEl,
+      this.input.render(),
+      this.contextEl);
+  }
+});
 
-  new BarsComponent(barsEl);
-  var nic = new NewInputComponent();
-  new ContextComponent(contextEl);
 
-  crel(newInputEl, nic.render());
-
-})(document.getElementById('expression'));
+crel(document.getElementById('expression'), new MainComponent().render());
