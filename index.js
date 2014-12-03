@@ -317,14 +317,34 @@ var ContextWidgetComponent = createComponent({
 
 var ContextComponent = createComponent({
   init: function() {
-    this.listenTo(contextStore, this.render);
+    this.listenTo(contextStore, this.updateContext);
+    this.mapContext = {};
+  },
+  updateContext: function(context) {
+    var hasChanged = false,
+        newMap = {};
+    Object.keys(context).forEach(function(k) {
+      if (!this.mapContext[k]) {
+        hasChanged = true;
+        newMap[k] = new ContextWidgetComponent('li');
+      } else {
+        newMap[k] = this.mapContext[k];
+      }
+    }, this);
+    Object.keys(this.mapContext).forEach(function(k) {
+      if (newMap[k]) { return; }  // we are keeping it around
+      hasChanged = true;
+      this.mapContext[k].removeListeners();  // it will be deleted
+    }, this);
+    if (!hasChanged) { return; }
+    this.mapContext = newMap;
+    this.render(context);
   },
   render: function(context) {
-    if (!context) { return; }
     return crel('ul', {'class': 'expr-context-widgets'},
-      Object.keys(context).map(function(k) {
-        return new ContextWidgetComponent('li').render(k, context[k]);
-      }));
+      Object.keys(this.mapContext).map(function(k) {
+        return this.mapContext[k].render(k, context[k]);
+      }, this));
   }
 });
 
