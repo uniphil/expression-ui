@@ -197,7 +197,7 @@ var InputComponent = createComponent({
     exprActions.changeWidth(exprWidth, widgetWidth);
   },
   render: function() {
-    return this.container = crel('div', {'class': 'expr-input'},
+    return (this.container = crel('div', {'class': 'expr-input'},
       this.highlighter.render(),
       this.eventEls.input.el = crel('input', {
         'class': 'expr-input-textinput',
@@ -206,7 +206,7 @@ var InputComponent = createComponent({
         this.widthMeasureEl = crel('span', {'class': 'expr-input-highlighted'})), {
         'position': 'absolute',
         'left': '-99999em'
-      }));
+      })));
   }
 });
 
