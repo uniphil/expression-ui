@@ -151,7 +151,8 @@ body {
   margin: 0;
 }
 .expr-choice .expr-input-radio {
-  display: none;
+  position: absolute;
+  left: -9999em;
 }
 .expr-choice .expr-input-radio-label {
   box-sizing: border-box;

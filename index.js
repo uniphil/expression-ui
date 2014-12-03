@@ -213,21 +213,36 @@ var InputComponent = createComponent({
 
 var ContextWidgetComponent = createComponent({
   init: function() {
+    this.listenTo(contextStore, this.contextUpdate);
     this.eventEls = {
       value: {
+        'focus': this.beginEditing,
         'keyup': this.changeValue,
-        'change': this.changeValue
+        'change': this.changeValue,
+        'blur': this.endEditing
       },
       type: { 'change': this.changeType },  // maybe add click for even moar compatability?
       minValue: { 'change': this.changeMin },
       maxValue: { 'change': this.changeMax },
-      slider: { 'change': this.changeSlider }
+      slider: {
+        'input': this.dragSlider,
+        'change': this.changeSlider,
+        'blur': this.endEditing
+      }
     };
+    this.isEditing = false;
+  },
+  beginEditing: function() {
+    this.isEditing = true;
+  },
+  endEditing: function() {
+    this.isEditing = false;
   },
   changeValue: function(e) {
     var myName = e.target.dataset.name,
         newValue = parseNumba(e.target.value);
     actions.contextChange(myName, {value: newValue});
+    this.pushSlider(newValue);
   },
   changeType: function(e) {
     var myName = e.target.dataset.name,
@@ -244,13 +259,34 @@ var ContextWidgetComponent = createComponent({
         newMax = parseNumba(e.target.value);
     actions.contextChange(myName, {max: newMax});
   },
+  dragSlider: function(e) {
+    var myName = e.target.dataset.name,
+        newValue = unrange(this.nameContext, parseInt(e.target.value, 10));
+    this.isEditing = true;
+    actions.contextChange(myName, {value: newValue});
+    this.spinValue(newValue);
+  },
   changeSlider: function(e) {
     var myName = e.target.dataset.name,
         newValue = unrange(this.nameContext, parseInt(e.target.value, 10));
     actions.contextChange(myName, {value: newValue});
   },
+  contextUpdate: function(context) {
+    window.setImmediate(function() {  // wait for any blurs...
+      if (!this.isEditing && context[this.name]) {  // ... but we might be gone
+        this.render(this.name, context[this.name]);
+      }
+    }.bind(this));
+  },
+  pushSlider: function(newValue) {
+    this.eventEls.slider.el.value = rangeNorm(this.nameContext, newValue);
+  },
+  spinValue: function(newValue) {
+    this.eventEls.value.el.value = newValue;
+  },
   render: function(name, nameContext) {
-    this.nameContext = nameContext;  // ugh...
+    this.name = name;  // ugh...
+    this.nameContext = nameContext;  // uuugghh...
     return crel('span',
       crel('label', {'for': name + '-expr-value'},
         crel('span', {'class': 'expr-name'}, name),
