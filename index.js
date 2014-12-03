@@ -222,67 +222,64 @@ var ContextWidgetComponent = createComponent({
         'blur': this.endEditing
       },
       type: { 'change': this.changeType },  // maybe add click for even moar compatability?
-      minValue: { 'change': this.changeMin },
+      minValue: {'change': this.changeMin },
       maxValue: { 'change': this.changeMax },
       slider: {
+        'focus': this.beginEditing,
         'input': this.dragSlider,
         'change': this.changeSlider,
         'blur': this.endEditing
       }
     };
+    this.lastChange = {};
     this.isEditing = false;
   },
-  beginEditing: function() {
-    this.isEditing = true;
-  },
-  endEditing: function() {
-    this.isEditing = false;
-  },
+  beginEditing: function() { this.isEditing = true; },
+  endEditing: function() { this.isEditing = false; },
   changeValue: function(e) {
-    var myName = e.target.dataset.name,
-        newValue = parseNumba(e.target.value);
-    actions.contextChange(myName, {value: newValue});
-    this.pushSlider(newValue);
+    var newValue = parseNumba(e.target.value);
+    this.maybeChange({value: newValue});
+    this.pushSlider(parseNumba(e.target.value));
   },
   changeType: function(e) {
-    var myName = e.target.dataset.name,
-        newType = e.target.value;
-    actions.contextChange(myName, {type: newType});
+    this.maybeChange({type: e.target.value});
   },
   changeMin: function(e) {
-    var myName = e.target.dataset.name,
-        newMin = parseNumba(e.target.value);
-    actions.contextChange(myName, {min: newMin});
+    this.maybeChange({min: parseNumba(e.target.value)});
   },
   changeMax: function(e) {
-    var myName = e.target.dataset.name,
-        newMax = parseNumba(e.target.value);
-    actions.contextChange(myName, {max: newMax});
+    this.maybeChange({max: parseNumba(e.target.value)});
   },
   dragSlider: function(e) {
-    var myName = e.target.dataset.name,
-        newValue = unrange(this.nameContext, parseInt(e.target.value, 10));
+    var newValue = unrange(this.nameContext, parseInt(e.target.value, 10));
     this.isEditing = true;
-    actions.contextChange(myName, {value: newValue});
+    this.maybeChange({value: newValue});
     this.spinValue(newValue);
   },
   changeSlider: function(e) {
-    var myName = e.target.dataset.name,
-        newValue = unrange(this.nameContext, parseInt(e.target.value, 10));
-    actions.contextChange(myName, {value: newValue});
+    var newValue = unrange(this.nameContext, parseInt(e.target.value, 10));
+    this.maybeChange({value: newValue});
   },
-  contextUpdate: function(context) {
-    window.setImmediate(function() {  // wait for any blurs...
-      if (!this.isEditing && context[this.name]) {  // ... but we might be gone
-        this.render(this.name, context[this.name]);
-      }
-    }.bind(this));
+  maybeChange: function(change) {
+    if (shallowEq(change, this.lastChange)) { return; }
+    this.lastChange = change;
+    actions.contextChange(this.name, change);
   },
   pushSlider: function(newValue) {
-    this.eventEls.slider.el.value = rangeNorm(this.nameContext, newValue);
+    if (this.nameContext.type === 'range') {
+      this.eventEls.slider.el.value = rangeNorm(this.nameContext, newValue);
+    }
   },
   spinValue: function(newValue) {
     this.eventEls.value.el.value = newValue;
+  },
+  contextUpdate: function(context) {
+    if (!(this.nameContext = context[this.name])) { return; }
+    window.setImmediate(function() {  // wait for any blurs...
+      if (!this.isEditing) {
+        this.render(this.name, context[this.name]);
+      }
+    }.bind(this));
   },
   render: function(name, nameContext) {
     this.name = name;  // ugh...
