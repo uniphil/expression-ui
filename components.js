@@ -186,7 +186,11 @@ var ContextWidgetComponent = createComponent({
     this.eventEls.value.el.value = newValue;
   },
   contextUpdate: function(context) {
-    if (!(this.nameContext = context[this.name])) { return; }
+    if (!context[this.name] ||
+        u.shallowEq(this.nameContext, context[this.name])) {
+      return;
+    }
+    this.nameContext = context[this.name];
     window.setImmediate(function() {  // wait for any blurs...
       if (!this.isEditing) {
         this.render(this.name, context[this.name]);
