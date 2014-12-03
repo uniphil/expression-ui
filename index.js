@@ -292,7 +292,6 @@ var ContextWidgetComponent = createComponent({
         this.eventEls.value.el = crel('input', {
           'class': 'expr-input-textinput expr-literal expr-context-const',
           'id': name + '-expr-value',
-          'data-name': name,
           'value': nameContext.value })),
       this.eventEls.type.el = crel('span', {'class': 'expr-choices'},
         this.choiceButton(name, nameContext, 'const', 'constant'),
@@ -308,7 +307,6 @@ var ContextWidgetComponent = createComponent({
           'name': elName,
           'value': choiceKey,
           'id': id,
-          'data-name': name
         };
     if (nameContext.type === choiceKey) { inputAttrs.checked = 'checked'; }
     return crel('span', {'class': 'expr-choice'},
@@ -325,7 +323,6 @@ var ContextWidgetComponent = createComponent({
         crel('span', {'class': 'expr-input'},
           this.eventEls.minValue.el = crel('input', {
             'class': 'expr-input-textinput expr-literal expr-context-rangebound',
-            'data-name': name,
             'value': nameContext.min
           }))),
       this.eventEls.slider.el = crel('input', {
@@ -333,7 +330,6 @@ var ContextWidgetComponent = createComponent({
         'type': 'range',
         'min': 0,
         'max': SLIDER_STEPS,
-        'data-name': name,
         'value': rangeNorm(nameContext, nameContext.value)
       }),
       crel('label', {'class': 'expr-rangebound-label'},
@@ -341,7 +337,6 @@ var ContextWidgetComponent = createComponent({
         crel('span', {'class': 'expr-input'},
           this.eventEls.maxValue.el = crel('input', {
             'class': 'expr-input-textinput expr-literal expr-context-rangebound',
-            'data-name': name,
             'value': nameContext.max
           }))));
   }
