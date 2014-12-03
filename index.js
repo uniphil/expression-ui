@@ -103,7 +103,7 @@ var contextStore = Reflux.createStore({
   setContext: function(context) {
     if (shallowEq(context, this.context)) { return; }
     this.context = extend({}, context);
-    this.contextCache = extend({}, context);
+    this.contextCache = extend({}, this.contextCache, context);
     this.trigger(this.context);
   },
 
