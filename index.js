@@ -71,7 +71,6 @@ var contextStore = Reflux.createStore({
   init: function() {
     this.listenTo(expressionStore, this.refreshContext);
     this.listenTo(actions.contextChange, this.updateContext);
-    this.listenTo(actions.contextSet, this.setContext);
     this.context = {};
     this.contextCache = {};  // keep settings for a variable around
   },
@@ -92,19 +91,20 @@ var contextStore = Reflux.createStore({
                            this._createContext();      // it's new!
       }
     }, this);
-    this.setContext(newContext, true);
+    this.setContext(newContext);
   },
 
   updateContext: function(name, update) {
     var updatedContext = extend({}, this.context);
     updatedContext[name] = extend({}, this.context[name], update);
-    this.setContext(updatedContext, true);
+    this.setContext(updatedContext);
   },
 
-  setContext: function(context, async) {
+  setContext: function(context) {
+    if (shallowEq(context, this.context)) { return; }
     this.context = extend({}, context);
     this.contextCache = extend({}, context);
-    this[async ? 'triggerAsync' : 'trigger'](context);
+    this.trigger(this.context);
   },
 
   _createContext: function() {
@@ -122,11 +122,13 @@ var contextStore = Reflux.createStore({
 var BarsComponent = createComponent({
   init: function() {
     this.listenTo(expressionStore, this.render);
-    this.listenTo(contextStore, this.scaleBars);
+    this.listenTo(afterIf(expressionStore, contextStore), this.scaleBars);
     this.barIdMap = null;
     this.barValues = null;
   },
   scaleBars: function(context) {
+    context = this.context = context || this.context;
+    if (!context) { return; }
     var exprContext = Object.keys(context).reduce(function(ctx, k) {
           ctx[k] = context[k].value;
           return ctx;
@@ -148,11 +150,13 @@ var BarsComponent = createComponent({
 
     this.barIdMap = [];
     this.barValues = values.fromAST(expr.ast);
-    return crel(container,
+    var bars = crel(container,
       walkTemplatesToDom(expr.ast, 'bar', function(node, el) {
         el.insertBefore(this.barIdMap[node.id] = crel('span',
           {'class': 'expr-bar-bar'}), el.firstChild);
       }, this));
+    this.scaleBars();
+    return bars;
   }
 });
 
@@ -173,7 +177,7 @@ var InputComponent = createComponent({
   init: function() {
     this.eventEls = {
       input: {
-        'keyup': this.changeSync,
+        'keyup': this.change,
         'change': this.change
       }
     };
@@ -181,11 +185,6 @@ var InputComponent = createComponent({
   },
   change: function(e) {
     exprActions.change(e.target.value);
-    this.updateWidth(e.target.value);
-  },
-  changeSync: function(e) {
-    // trigger input action synchronously to avoid blanking between redraws
-    exprActions.change.trigger(e.target.value);
     this.updateWidth(e.target.value);
   },
   updateWidth: function(newText) {
@@ -330,6 +329,30 @@ var ContextComponent = createComponent({
 });
 
 
+function afterIf(maybeWaitFor, listenable) {
+  var mockStore = Reflux.createStore(),
+      waiting = false,
+      payload;
+  maybeWaitFor.listen(function() {
+    if (waiting) {
+      mockStore.trigger.apply(mockStore, payload);
+      waiting = false;
+    }
+  });
+  listenable.listen(function() {
+    waiting = true;
+    payload = Array.prototype.slice.call(arguments);
+    window.setImmediate(function() {
+      if (waiting) {
+        mockStore.trigger.apply(mockStore, payload);
+        waiting = false;
+      }
+    });
+  });
+  return mockStore;
+}
+
+
 function cleanExpr(expr) {
   if (!expr) { return ''; }
   try {
@@ -374,6 +397,15 @@ function style(el, styles) {
     return [key, styles[key]].join(':');
   }).join(';'));
   return el;
+}
+
+
+function shallowEq(a, b) {
+  return a === b ||
+    Object.keys(a).length === Object.keys(b).length &&
+    Object.keys(a).reduce(function(r, k) {
+      return r && a[k] === b[k];
+    }, true);
 }
 
 
