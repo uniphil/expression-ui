@@ -119,46 +119,6 @@ var contextStore = Reflux.createStore({
 });
 
 
-var contextChangeStore = Reflux.createStore({
-
-  init: function() {
-    this.listenTo(flowThrottle(contextStore), this.newContext);
-    this.prevContext = {};
-  },
-
-  newContext: function(context) {
-    if (shallowEq(context, this.prevContext)) { return; }
-    this.trigger(context);
-    this.prevContext = context;
-  }
-
-});
-
-
-var contextCommitStore = Reflux.createStore({
-  init: function() {
-    this.resetListeners();
-  },
-  resetListeners: function() {
-    this.stopEx && this.stopEx.stop();
-    this.stopCx && this.stopCx.stop();
-    this.stopEx = this.joinTrailing(contextChangeStore, expressionStore, this.passCxChange0);
-    this.stopCx = this.joinTrailing(contextChangeStore, actions.contextCommit, this.passCxChange);
-  },
-  passCxChange0: function(args) {
-    this.trigger(args[0]);
-    this.resetListeners();
-  },
-  passCxChange: function(args) {
-    this.trigger(args[0]);
-    this.resetListeners();
-  }
-});
-
-
-var contextVaryStore = Reflux.joinTrailing(contextChangeStore, actions.contextVary);
-
-
 var BarsComponent = createComponent({
   init: function() {
     this.listenTo(expressionStore, this.render);
@@ -252,126 +212,122 @@ var InputComponent = createComponent({
 });
 
 
-function ContextComponent(root) {
-  root.addEventListener('input', inputUpdate, false);
-  root.addEventListener('keyup', inputUpdate, false);
-  root.addEventListener('change', inputChange, false);
-
-  flowThrottle(contextCommitStore).listen(newContext);
-  contextVaryStore.listen(spinNumber);
-
-  var currentContext;
-  var inputNameMap;
-
-  function newContext(context) {
-    context = context || currentContext;
-    currentContext = context;
-    inputNameMap = {};
-    var ctxWidget;
-    emptyEl(root);
-    crel(root,
-      crel('ul', {'class': 'expr-context-widgets'},
-        Object.keys(context).map(function(k) {
-          ctxWidget = crel('li', _getContextWidget(k, context[k]));
-          inputNameMap[k] = ctxWidget.querySelector('.expr-context-const');
-          return ctxWidget;
-        })));
-  }
-
-  function _getContextChoiceButton(name, context, choice, choiceName) {
+var ContextWidgetComponent = createComponent({
+  init: function() {
+    this.eventEls = {
+      value: {
+        'keyup': this.changeValue,
+        'change': this.changeValue
+      },
+      type: { 'change': this.changeType },  // maybe add click for even moar compatability?
+      minValue: { 'change': this.changeMin },
+      maxValue: { 'change': this.changeMax },
+      slider: { 'change': this.changeSlider }
+    };
+  },
+  changeValue: function(e) {
+    var myName = e.target.dataset.name,
+        newValue = parseNumba(e.target.value);
+    actions.contextChange(myName, {value: newValue});
+  },
+  changeType: function(e) {
+    var myName = e.target.dataset.name,
+        newType = e.target.value;
+    actions.contextChange(myName, {type: newType});
+  },
+  changeMin: function(e) {
+    var myName = e.target.dataset.name,
+        newMin = parseNumba(e.target.value);
+    actions.contextChange(myName, {min: newMin});
+  },
+  changeMax: function(e) {
+    var myName = e.target.dataset.name,
+        newMax = parseNumba(e.target.value);
+    actions.contextChange(myName, {max: newMax});
+  },
+  changeSlider: function(e) {
+    var myName = e.target.dataset.name,
+        newValue = unrange(this.nameContext, parseInt(e.target.value, 10));
+    actions.contextChange(myName, {value: newValue});
+  },
+  render: function(name, nameContext) {
+    this.nameContext = nameContext;  // ugh...
+    return crel('span',
+      crel('label', {'for': name + '-expr-value'},
+        crel('span', {'class': 'expr-name'}, name),
+        '='),
+      crel('div', {'class': 'expr-input'},
+        this.eventEls.value.el = crel('input', {
+          'class': 'expr-input-textinput expr-literal expr-context-const',
+          'id': name + '-expr-value',
+          'data-name': name,
+          'value': nameContext.value })),
+      this.eventEls.type.el = crel('span', {'class': 'expr-choices'},
+        this.choiceButton(name, nameContext, 'const', 'constant'),
+        this.choiceButton(name, nameContext, 'range', 'variable')),
+      nameContext.type === 'range' ? this.slider(name, nameContext) : void 0);
+  },
+  choiceButton: function(name, nameContext, choiceKey, choiceName) {
     var elName = 'expr-choice-' + name,
-        id = name + '-' + choice,
+        id = elName + '-' + choiceKey,
         inputAttrs = {
           'class': 'expr-input-radio expr-input-radio-name-type',
           'type': 'radio',
           'name': elName,
+          'value': choiceKey,
           'id': id,
-          'data-ctxname': name,
-          'data-ctxtype': choice
+          'data-name': name
         };
-    if (context.type === choice) { inputAttrs.checked = 'checked'; }
+    if (nameContext.type === choiceKey) { inputAttrs.checked = 'checked'; }
     return crel('span', {'class': 'expr-choice'},
       crel('input', inputAttrs),
       crel('label', {
         'class': 'expr-input-radio-label',
         'for': id
       }, choiceName));
+  },
+  slider: function(name, nameContext) {
+    return crel('span', {'class': 'expr-variable-range'},
+      crel('label', {'class': 'expr-rangebound-label'},
+        crel('span', {'class': 'expr-rangebound-label-text'}, 'min:'),
+        crel('span', {'class': 'expr-input'},
+          this.eventEls.minValue.el = crel('input', {
+            'class': 'expr-input-textinput expr-literal expr-context-rangebound',
+            'data-name': name,
+            'value': nameContext.min
+          }))),
+      this.eventEls.slider.el = crel('input', {
+        'class': 'expr-input-range expr-context-variable',
+        'type': 'range',
+        'min': 0,
+        'max': SLIDER_STEPS,
+        'data-name': name,
+        'value': rangeNorm(nameContext, nameContext.value)
+      }),
+      crel('label', {'class': 'expr-rangebound-label'},
+        crel('span', {'class': 'expr-rangebound-label-text'}, 'max:'),
+        crel('span', {'class': 'expr-input'},
+          this.eventEls.maxValue.el = crel('input', {
+            'class': 'expr-input-textinput expr-literal expr-context-rangebound',
+            'data-name': name,
+            'value': nameContext.max
+          }))));
   }
+});
 
-  function _getContextWidget(name, context) {
-    return crel('span',
-      crel('label', {'for': name + '-expr-value'},
-        crel('span', {'class': 'expr-name'}, name),
-        '='),
-      crel('div', {'class': 'expr-input'},
-        crel('input', {
-          'class': 'expr-input-textinput expr-literal expr-context-const',
-          'id': name + '-expr-value',
-          'data-ctxname': name,
-          'value': context.value })),
-      crel('span', {'class': 'expr-choices'},
-        _getContextChoiceButton(name, context, 'const', 'constant'),
-        _getContextChoiceButton(name, context, 'range', 'variable')),
-      (context.type === 'range' ?
-        crel('span', {'class': 'expr-variable-range'},
-          crel('label', {'class': 'expr-rangebound-label'},
-            crel('span', {'class': 'expr-rangebound-label-text'}, 'min:'),
-            crel('span', {'class': 'expr-input'},
-              crel('input', {
-                'class': 'expr-input-textinput expr-literal expr-context-rangebound',
-                'data-ctxname': name,
-                'data-ctxprop': 'min',
-                'value': context.min
-              }))),
-          crel('input', {
-            'class': 'expr-input-range expr-context-variable',
-            'type': 'range',
-            'min': 0,
-            'max': SLIDER_STEPS,
-            'data-ctxname': name,
-            'value': rangeNorm(context, context.value)
-          }),
-          crel('label', {'class': 'expr-rangebound-label'},
-            crel('span', {'class': 'expr-rangebound-label-text'}, 'min:'),
-            crel('span', {'class': 'expr-input'},
-              crel('input', {
-                'class': 'expr-input-textinput expr-literal expr-context-rangebound',
-                'data-ctxname': name,
-                'data-ctxprop': 'max',
-                'value': context.max
-              })))) :
-        void 0));
-  }
 
-  function spinNumber(contexts, name) {
-    inputNameMap[name].value = contexts[0][name].value;
+var ContextComponent = createComponent({
+  init: function() {
+    this.listenTo(contextStore, this.render);
+  },
+  render: function(context) {
+    if (!context) { return; }
+    return crel('ul', {'class': 'expr-context-widgets'},
+      Object.keys(context).map(function(k) {
+        return new ContextWidgetComponent('li').render(k, context[k]);
+      }));
   }
-
-  function inputUpdate(e) {
-    var input = e.target;
-    if (input.classList.contains('expr-context-const')) {
-      actions.contextChange(input.dataset.ctxname,
-        {'value': parseNumba(input.value)});
-    } else if (input.classList.contains('expr-input-radio-name-type')) {
-      actions.contextChange(input.dataset.ctxname,
-        {'type': input.dataset.ctxtype});
-    } else if (input.classList.contains('expr-context-variable')) {
-      actions.contextChange(input.dataset.ctxname,
-        {'value': unrange(currentContext[input.dataset.ctxname],
-                          parseNumba(input.value))});
-      actions.contextVary(input.dataset.ctxname);
-    } else if (input.classList.contains('expr-context-rangebound')) {
-      var changeObj = {};
-      changeObj[input.dataset.ctxprop] = parseNumba(input.value);
-      actions.contextChange(input.dataset.ctxname, changeObj);
-    }
-  }
-
-  function inputChange(e) {
-    inputUpdate(e);
-    actions.contextCommit();
-  }
-}
+});
 
 
 function cleanExpr(expr) {
@@ -381,22 +337,6 @@ function cleanExpr(expr) {
   } catch (err) {
     return cleanExpr(expr.slice(0, -1));
   }
-}
-
-
-function flowThrottle(listenable, timeout) {
-  // just do the last one
-  var timer,
-      store = Reflux.createStore(),
-      args;
-  listenable.listen(function() {
-    clearTimeout(timer);
-    args = Array.prototype.slice.call(arguments);
-    timer = setTimeout(function() {
-      store.trigger.apply(store, args);
-    }, timeout || 0);
-  });
-  return store;
 }
 
 
@@ -437,15 +377,6 @@ function style(el, styles) {
 }
 
 
-function shallowEq(a, b) {
-  return a === b ||
-    Object.keys(a).length === Object.keys(b).length &&
-    Object.keys(a).reduce(function(r, k) {
-      return r && a[k] === b[k];
-    }, true);
-}
-
-
 function extend(out) {
   /* http://youmightnotneedjquery.com/#extend */
   out = out || {};
@@ -456,11 +387,6 @@ function extend(out) {
     }
   }
   return out;
-}
-
-
-function emptyEl(el) {
-  while (el.firstChild) { el.removeChild(el.firstChild); }
 }
 
 
@@ -482,14 +408,13 @@ var MainComponent = createComponent({
   init: function() {
     this.bars = new BarsComponent();
     this.input = new InputComponent();
-    this.contextEl = crel('div');
-    this.context = new ContextComponent(this.contextEl);
+    this.context = new ContextComponent();
   },
   render: function() {
     crel(this.el,
       this.bars.render(),
       this.input.render(),
-      this.contextEl);
+      this.context.render());
   }
 });
 
